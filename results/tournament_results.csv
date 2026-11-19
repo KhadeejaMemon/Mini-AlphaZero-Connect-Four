@@ -1,0 +1,6 @@
+AI,Wins,Losses,Draws,Games,Win Rate,Average Decision Time
+Random AI,0,8,0,8,0.0,0.0
+Minimax,7,1,0,8,87.5,0.153
+Alpha-Beta,7,1,0,8,87.5,0.1567
+Standard MCTS,3,5,0,8,37.5,0.3517
+Neural MCTS,3,5,0,8,37.5,0.3775

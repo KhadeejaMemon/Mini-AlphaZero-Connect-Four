@@ -1,0 +1,5 @@
+Simulations,Neural Wins,Plain Wins,Draws,Neural Win Rate,Plain Win Rate,Neural Avg Time,Plain Avg Time
+25,9,11,0,45.0,55.0,0.0539,0.0041
+50,12,8,0,60.0,40.0,0.0821,0.0074
+100,9,10,1,45.0,50.0,0.1487,0.0136
+200,5,15,0,25.0,75.0,0.2466,0.0196
