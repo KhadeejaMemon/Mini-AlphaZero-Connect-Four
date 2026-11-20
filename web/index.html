@@ -134,7 +134,7 @@ function findWin(board, player) {
 
 /* ---------- app state ---------- */
 const A = {
-  state: 'home', mode: 'ai', fade: 255, started: false, game: new Game(), moves: [], anim: null, winCells: [], lastMove: null, lastInfo: '',
+  state: 'gate', mode: 'ai', fade: 255, started: false, game: new Game(), moves: [], anim: null, winCells: [], lastMove: null, lastInfo: '',
   counted: false, resultKey: null, confetti: [], score: { you: 0, ai: 0, draw: 0 }, msg: '', opponent: 'Standard MCTS', level: 'Medium', human: 1,
   thinking: false, token: 0, neuralOK: false, neuralChecked: false, touched: false, revealed: 0,
   t0: performance.now(), introT0: performance.now(), mouse: { x: -1, y: -1 }, particles: []
@@ -422,10 +422,19 @@ function drawQuit() {
   const r = R(BASE_W / 2 - 210, 500, 420, 62); A.quitBtn = r; const hover = inRect(A.mouse, r);
   fillRR(r.x, r.y, r.w, r.h, 22, hover ? GREEN_HOVER : GREEN); text('Back to menu', r.x + r.w / 2, r.y + r.h / 2, 'med', WHITE, 'center');
 }
+function drawGate() {
+  const w = performance.now() / 1000;
+  for (let i = 0; i < 7; i++) disc(BASE_W / 2 + (i - 3) * 80, 330 + Math.sin(w * 2.5 + i * 0.7) * 10, 28, PLAYER_COLOR[i % 2 === 0 ? 1 : -1]);
+  text('MINI ALPHAZERO', BASE_W / 2, 430, 'big', T.TEXT, 'center');
+  const r = R(BASE_W / 2 - 210, 500, 420, 62); A.gateBtn = r; const hover = inRect(A.mouse, r);
+  fillRR(r.x, r.y, r.w, r.h, 22, hover ? GREEN_HOVER : GREEN); text('Click to start', r.x + r.w / 2, r.y + r.h / 2, 'med', WHITE, 'center');
+  text('Click anywhere or press any key (sound will play)', BASE_W / 2, 600, 'norm', T.MUTED, 'center');
+}
+function leaveGate() { A.state = 'home'; A.introT0 = performance.now(); A.t0 = performance.now(); A.revealed = 0; A.fade = 255; playSound('click'); }
 function draw() {
   ctx.setTransform(S, 0, 0, S, 0, 0); ctx.clearRect(0, 0, BASE_W, BASE_H);
   ctx.fillStyle = rgb(T.BG); ctx.fillRect(0, 0, BASE_W, BASE_H);
-  if (A.state === 'home') drawHome(); else if (A.state === 'howto' || A.state === 'about') drawInfo(); else if (A.state === 'quit') drawQuit(); else drawGame();
+  if (A.state === 'gate') drawGate(); else if (A.state === 'home') drawHome(); else if (A.state === 'howto' || A.state === 'about') drawInfo(); else if (A.state === 'quit') drawQuit(); else drawGame();
   if (A.fade > 0) { ctx.fillStyle = rgb(T.BG, A.fade / 255); ctx.fillRect(0, 0, BASE_W, BASE_H); }
 }
 
@@ -434,6 +443,7 @@ function pos(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX -
 function skipIntro() { A.introT0 = performance.now() - 100000; }
 function click(p) {
   A.msg = '';
+  if (A.state === 'gate') { leaveGate(); return; }
   if (A.state === 'quit') { if (A.quitBtn && inRect(p, A.quitBtn)) goHome(); return; }
   if (A.state === 'home') {
     if (inRect(p, homeThemeRect)) { toggleTheme(); return; }
@@ -473,6 +483,7 @@ cv.addEventListener('pointerdown', e => { ensureAudio(); A.mouse = pos(e); click
 window.addEventListener('keydown', e => {
   ensureAudio(); const k = e.key.toLowerCase();
   if (A.state === 'quit') return;
+  if (A.state === 'gate') { if (!e.ctrlKey && !e.metaKey && !e.altKey && k.length > 0 && k !== 'f5' && k !== 'f12') leaveGate(); return; }
   if (A.state === 'home') {
     if (now() < UI_TIME) { skipIntro(); return; }
     if (k === 'escape') quitApp(); else if (k === '1' || k === 'enter') startMode('ai'); else if (k === '2') startMode('two');
