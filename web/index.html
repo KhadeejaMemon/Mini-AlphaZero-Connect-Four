@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini-AlphaZero | Connect Four</title>
+<meta name="description" content="Play Connect Four against Random, Minimax, Alpha-Beta, MCTS and a self-taught Neural MCTS agent.">
+<style>
+  html,body{margin:0;height:100%;background:#eef2f7;overflow:hidden;font-family:system-ui,"Segoe UI",Arial,sans-serif}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center}
+  canvas{display:block;touch-action:none;user-select:none;-webkit-user-select:none;cursor:default}
+  #foot{font-size:12px;padding:4px 8px;text-align:center;opacity:.75;color:#64748b}
+  #foot a{color:inherit}
+</style>
+</head>
+<body>
+<canvas id="cv" width="1200" height="920" tabindex="0"></canvas>
+<div id="foot">Khadeeja (24-BSCS-29) &middot; Sir Abdul Rafio &middot; <a href="https://github.com/KhadeejaMemon/Mini-AlphaZero-Connect-Four" target="_blank" rel="noopener">Source code on GitHub</a></div>
+<script src="agents.js"></script>
+<script>
+(() => {
+'use strict';
+/* =====================================================================
+   Browser version of the Pygame interface (same layout, 1200 x 920 design units)
+   ===================================================================== */
+const BASE_W = 1200, BASE_H = 920;
+const ROWS = 6, COLS = 7, CELL = 100;
+const BOARD_X = 40, BOARD_Y = 215, BOARD_W = COLS * CELL, BOARD_H = ROWS * CELL;
+const HOLE_R = 40, PIECE_R = 42, INNER_R = 28, PREVIEW_Y = BOARD_Y - 60;
+const PANEL = { x: 770, y: 104, w: 390, h: 714 };
+const PX = PANEL.x + 20, PW = PANEL.w - 40, GAP = 10;
+const Y_OPP = 126, Y_BTN0 = 156, BTN_STEP = 52, BTN_H = 44, Y_STR = 428, Y_LVL = 458, SMALL_H = 42;
+const Y_YOU = 520, Y_SIDE = 550, Y_SCORE = 612, Y_BOX = 642, BOX_H = 84, Y_ACT = 746, ACT_H = 50;
+
+const THEMES = {
+  Light:{BG:[238,242,247],PANEL_BG:[255,255,255],PANEL_EDGE:[211,219,231],SHADOW:[205,212,225],HOLE_BG:[222,229,240],BOARD_BLUE:[37,99,235],BOARD_DARK:[29,78,190],BTN:[241,245,249],BTN_HOVER:[226,232,240],BORDER:[200,210,224],TEXT:[30,41,59],MUTED:[100,116,139],ACCENT:[37,99,235],DISABLED:[203,213,225],VEIL:[238,242,247,205]},
+  Dark:{BG:[15,20,33],PANEL_BG:[28,36,54],PANEL_EDGE:[55,65,90],SHADOW:[7,10,18],HOLE_BG:[10,14,24],BOARD_BLUE:[37,99,235],BOARD_DARK:[29,78,190],BTN:[42,53,76],BTN_HOVER:[58,72,102],BORDER:[72,86,120],TEXT:[240,244,250],MUTED:[160,174,198],ACCENT:[59,130,246],DISABLED:[72,86,120],VEIL:[15,20,33,215]},
+  Black:{BG:[0,0,0],PANEL_BG:[15,15,18],PANEL_EDGE:[45,45,52],SHADOW:[0,0,0],HOLE_BG:[8,8,10],BOARD_BLUE:[30,58,138],BOARD_DARK:[23,37,84],BTN:[30,30,36],BTN_HOVER:[45,45,54],BORDER:[63,63,74],TEXT:[250,250,250],MUTED:[176,176,190],ACCENT:[59,130,246],DISABLED:[63,63,74],VEIL:[0,0,0,215]},
+  Ocean:{BG:[236,248,251],PANEL_BG:[255,255,255],PANEL_EDGE:[186,230,253],SHADOW:[190,222,236],HOLE_BG:[214,238,246],BOARD_BLUE:[14,116,144],BOARD_DARK:[21,94,117],BTN:[240,249,255],BTN_HOVER:[224,242,254],BORDER:[165,214,235],TEXT:[8,47,73],MUTED:[51,85,105],ACCENT:[2,132,199],DISABLED:[186,230,253],VEIL:[236,248,251,210]},
+  Forest:{BG:[10,25,18],PANEL_BG:[18,42,30],PANEL_EDGE:[40,84,62],SHADOW:[4,12,8],HOLE_BG:[6,18,12],BOARD_BLUE:[22,101,52],BOARD_DARK:[20,83,45],BTN:[28,62,44],BTN_HOVER:[40,84,62],BORDER:[56,112,82],TEXT:[236,253,245],MUTED:[167,215,190],ACCENT:[22,163,74],DISABLED:[40,84,62],VEIL:[10,25,18,215]},
+  Purple:{BG:[245,243,255],PANEL_BG:[255,255,255],PANEL_EDGE:[221,214,254],SHADOW:[214,208,240],HOLE_BG:[233,228,252],BOARD_BLUE:[109,40,217],BOARD_DARK:[91,33,182],BTN:[245,243,255],BTN_HOVER:[237,233,254],BORDER:[196,181,253],TEXT:[46,16,101],MUTED:[87,63,140],ACCENT:[124,58,237],DISABLED:[196,181,253],VEIL:[245,243,255,210]},
+  Sunset:{BG:[255,247,237],PANEL_BG:[255,255,255],PANEL_EDGE:[254,215,170],SHADOW:[245,215,185],HOLE_BG:[254,235,215],BOARD_BLUE:[180,60,15],BOARD_DARK:[140,45,12],BTN:[255,247,237],BTN_HOVER:[254,235,215],BORDER:[253,186,116],TEXT:[67,20,7],MUTED:[124,45,18],ACCENT:[234,88,12],DISABLED:[253,186,116],VEIL:[255,247,237,210]},
+  Pink:{BG:[253,242,248],PANEL_BG:[255,255,255],PANEL_EDGE:[251,207,232],SHADOW:[244,200,222],HOLE_BG:[252,231,243],BOARD_BLUE:[190,24,93],BOARD_DARK:[157,23,77],BTN:[253,242,248],BTN_HOVER:[252,231,243],BORDER:[249,168,212],TEXT:[80,7,36],MUTED:[131,24,67],ACCENT:[219,39,119],DISABLED:[249,168,212],VEIL:[253,242,248,210]},
+  Maroon:{BG:[28,10,14],PANEL_BG:[46,16,24],PANEL_EDGE:[110,38,52],SHADOW:[12,4,6],HOLE_BG:[20,6,10],BOARD_BLUE:[128,0,32],BOARD_DARK:[96,0,24],BTN:[70,24,34],BTN_HOVER:[96,34,48],BORDER:[140,52,68],TEXT:[255,240,242],MUTED:[230,190,198],ACCENT:[190,18,60],DISABLED:[110,38,52],VEIL:[28,10,14,215]}
+};
+const THEME_ORDER = ['Light','Dark','Black','Ocean','Forest','Purple','Sunset','Pink','Maroon'];
+const WHITE=[255,255,255], MARKER=[30,41,59], GREEN=[22,163,74], GREEN_HOVER=[34,180,90], RED_UI=[220,53,69], AMBER=[217,119,6], GREY_PILL=[100,116,139];
+const PLAYER_COLOR = { 1: [250,204,21], '-1': [239,68,68] };
+const AI_NAMES = ['Random AI','Minimax','Alpha-Beta','Standard MCTS','Neural MCTS'];
+const AGENT_ID = {'Random AI':'random','Minimax':'minimax','Alpha-Beta':'alphabeta','Standard MCTS':'mcts','Neural MCTS':'neural'};
+const LEVELS = { Easy:[2,50], Medium:[3,100], Hard:[4,200] };
+const HOWTO_STEPS = [
+  ['1','Choose a mode','Pick Play vs AI to face the computer, or 2 Players to share one screen.'],
+  ['2','Set up the match','Choose an opponent, a strength and your side, then press Start.'],
+  ['3','Drop your discs','Click a column or press 1-7. The disc falls to the lowest empty slot.'],
+  ['4','Connect four to win','Line up 4 discs in a row, column or diagonal. A full board is a draw.']];
+const HOWTO_KEYS = [['1-7','Drop a disc'],['U','Undo'],['R','Restart'],['T','Theme'],['M','Sound'],['ESC','Menu']];
+const ABOUT_TEXT = 'Mini-AlphaZero is a Connect Four game where you can play against different AI agents, from a simple random player to a neural network guided by Monte Carlo Tree Search. The neural agent learns through self-play: a CNN predicts good moves (policy) and who is winning (value), and the search uses both to choose strong moves.';
+const ABOUT_AGENTS = [['Random AI','Plays any legal column. A simple baseline.'],['Minimax','Looks several moves ahead and picks the best outcome.'],['Alpha-Beta','Minimax with pruning, so it searches deeper and faster.'],['Standard MCTS','Runs many random simulations to find strong moves.'],['Neural MCTS','MCTS guided by a CNN trained through self-play.']];
+const ABOUT_INFO = [['Student','Khadeeja'],['Roll No','24-BSCS-29'],['Instructor','Sir Abdul Rafio']];
+
+/* ---------- canvas ---------- */
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let S = 1;
+function fit() {
+  const foot = document.getElementById('foot').offsetHeight;
+  const w = Math.min(window.innerWidth, (window.innerHeight - foot) * BASE_W / BASE_H);
+  const dpr = window.devicePixelRatio || 1;
+  cv.style.width = w + 'px'; cv.style.height = (w * BASE_H / BASE_W) + 'px';
+  cv.width = Math.round(w * dpr); cv.height = Math.round(w * dpr * BASE_H / BASE_W);
+  S = cv.width / BASE_W;
+}
+const rgb = (c, a) => a === undefined ? `rgb(${c[0]},${c[1]},${c[2]})` : `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const shade = (c, f) => c.slice(0, 3).map(v => Math.max(0, Math.min(255, Math.floor(v * f))));
+let T = THEMES.Light, themeName = 'Light';
+const FONT = '"Segoe UI","Helvetica Neue",Helvetica,Arial,sans-serif';
+const F = { title:[32,1], start:[34,1], big:[36,1], med:[26,1], norm:[22,0], small:[18,1], hero:[68,1], body:[20,0], bodyB:[20,1] };
+function text(s, x, y, f, color, anchor = 'topleft', alpha = 1) {
+  const [size, bold] = F[f];
+  ctx.font = `${bold ? '700 ' : ''}${size * 0.9}px ${FONT}`;
+  const A = { topleft:['left','top'], center:['center','middle'], midleft:['left','middle'], midtop:['center','top'], topright:['right','top'] }[anchor];
+  ctx.textAlign = A[0]; ctx.textBaseline = A[1]; ctx.globalAlpha = alpha; ctx.fillStyle = rgb(color || T.TEXT);
+  ctx.fillText(s, x, y); ctx.globalAlpha = 1;
+}
+const measure = (s, f) => { const [size, bold] = F[f]; ctx.font = `${bold ? '700 ' : ''}${size * 0.9}px ${FONT}`; return ctx.measureText(s).width; };
+function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function fillRR(x, y, w, h, r, color) { rrect(x, y, w, h, r); ctx.fillStyle = rgb(color); ctx.fill(); }
+function strokeRR(x, y, w, h, r, color, lw = 2) { rrect(x + lw / 2, y + lw / 2, w - lw, h - lw, r); ctx.strokeStyle = rgb(color); ctx.lineWidth = lw; ctx.stroke(); }
+function disc(x, y, r, color, alpha) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = rgb(color, alpha); ctx.fill(); }
+function ring(x, y, r, color, lw) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.strokeStyle = rgb(color); ctx.lineWidth = lw; ctx.stroke(); }
+function wrap(s, f, maxw) { const lines = []; let cur = ''; for (const w of s.split(' ')) { const t = (cur + ' ' + w).trim(); if (measure(t, f) <= maxw) cur = t; else { if (cur) lines.push(cur); cur = w; } } if (cur) lines.push(cur); return lines; }
+const inRect = (p, r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+const R = (x, y, w, h) => ({ x, y, w, h });
+
+/* ---------- sound ---------- */
+let audio = null, soundOn = true;
+function ensureAudio() { if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (audio && audio.state === 'suspended') audio.resume(); }
+const TONES = { tick:[[988,55]], click:[[660,40],[880,50]], drop:[[300,40],[200,70]], win:[[523,110],[659,110],[784,110],[1047,260]] };
+const VOL = { tick:.25, click:.25, drop:.35, win:.3 };
+function playSound(name) {
+  if (!soundOn || !audio) return;
+  try {
+    let t = audio.currentTime;
+    for (const [f, ms] of TONES[name]) {
+      const o = audio.createOscillator(), g = audio.createGain(), d = ms / 1000;
+      o.frequency.value = f; o.connect(g); g.connect(audio.destination);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(VOL[name] * .5, t + .005);
+      g.gain.setValueAtTime(VOL[name] * .5, t + Math.max(.006, d - .03)); g.gain.linearRampToValueAtTime(0, t + d);
+      o.start(t); o.stop(t + d + .02); t += d;
+    }
+  } catch (e) {}
+}
+
+/* ---------- game model ---------- */
+class Game {
+  constructor() { this.board = new Int8Array(42); this.current = 1; this.over = false; this.winner = null; }
+  valid() { return validMoves(this.board); }
+  make(col) {
+    if (this.over || this.board[col] !== 0) return false;
+    const p = this.current, r = play(this.board, col, p);
+    if (winCells(this.board, r, col, p)) { this.over = true; this.winner = p; }
+    else if (!this.valid().length) { this.over = true; this.winner = 0; }
+    else this.current = -p;
+    return true;
+  }
+}
+function findWin(board, player) {
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) for (const [dr, dc] of [[0,1],[1,0],[1,1],[1,-1]]) {
+    const cells = [0,1,2,3].map(i => [r + dr * i, c + dc * i]);
+    if (cells.every(([a, b]) => a >= 0 && a < ROWS && b >= 0 && b < COLS && board[a * COLS + b] === player)) return cells;
+  }
+  return [];
+}
+
+/* ---------- app state ---------- */
+const A = {
+  state: 'home', mode: 'ai', fade: 255, started: false, game: new Game(), moves: [], anim: null, winCells: [], lastMove: null, lastInfo: '',
+  counted: false, resultKey: null, confetti: [], score: { you: 0, ai: 0, draw: 0 }, msg: '', opponent: 'Standard MCTS', level: 'Medium', human: 1,
+  thinking: false, token: 0, neuralOK: false, neuralChecked: false, touched: false, revealed: 0,
+  t0: performance.now(), introT0: performance.now(), mouse: { x: -1, y: -1 }, particles: []
+};
+const UI_TIME = 0.4 + 2 * 0.55 + 0.2 + 9 * 0.2 + 0.2;
+for (let i = 0; i < 26; i++) A.particles.push({ x: Math.random() * BASE_W, y: -BASE_H + Math.random() * BASE_H * 2, v: 1.5 + Math.random() * 3, r: 16 + Math.random() * 24, p: Math.random() < .5 ? 1 : -1 });
+const now = () => (performance.now() - A.introT0) / 1000;
+const wave = () => (performance.now() - A.t0) / 1000;
+
+/* rects */
+const themeRect = R(BOARD_X + BOARD_W - 170, 30, 170, 52), backRect = R(themeRect.x - 150, 30, 140, 52);
+const startRect = R(BOARD_X + BOARD_W / 2 - 170, BOARD_Y + BOARD_H / 2 - 20 - 45, 340, 90);
+const soundRect = R(40, 30, 170, 52), homeThemeRect = R(BASE_W - 40 - 170, 30, 170, 52);
+const homeButtons = [['ai','Play vs AI'],['two','2 Players'],['howto','How to Play'],['about','About'],['quit','Quit']].map(([id, label], i) => ({ id, label, r: R(BASE_W / 2 - 210, 395 + i * 74, 420, 62) }));
+const third = (PW - 2 * GAP) / 3, half = (PW - GAP) / 2;
+const buttons = [];
+AI_NAMES.forEach((n, i) => buttons.push({ id: ['ai', n], r: R(PX, Y_BTN0 + i * BTN_STEP, PW, BTN_H), label: n }));
+Object.keys(LEVELS).forEach((l, i) => buttons.push({ id: ['level', l], r: R(PX + i * (third + GAP), Y_LVL, third, SMALL_H), label: l }));
+buttons.push({ id: ['side', 1], r: R(PX, Y_SIDE, half, SMALL_H), label: 'First (Yellow)' });
+buttons.push({ id: ['side', -1], r: R(PX + half + GAP, Y_SIDE, half, SMALL_H), label: 'Second (Red)' });
+[['undo','Undo'],['restart','Restart'],['exit','Menu']].forEach(([id, label], i) => buttons.push({ id, r: R(PX + i * (third + GAP), Y_ACT, third, ACT_H), label }));
+let infoBackRect = R(0, 0, 0, 0);
+
+/* ---------- worker ---------- */
+let worker = null;
+function startWorker() {
+  try { worker = new Worker('agents.js'); } catch (e) { worker = null; A.neuralChecked = true; return; }
+  worker.onmessage = e => {
+    const m = e.data;
+    if (m.type === 'ready') {
+      A.neuralOK = m.ok; A.neuralChecked = true;
+      if (m.ok && !A.touched && A.opponent === 'Standard MCTS') A.opponent = 'Neural MCTS';
+    } else if (m.type === 'move') {
+      if (m.token !== A.token || !A.thinking) return;
+      const wait = Math.max(0, 450 - m.ms);
+      setTimeout(() => {
+        if (m.token !== A.token || !A.thinking) return;
+        A.thinking = false;
+        const valid = A.game.valid(); if (!valid.length) return;
+        let mv = m.move;
+        if (!valid.includes(mv)) { mv = valid[Math.floor(Math.random() * valid.length)]; A.msg = 'AI returned an invalid move; played randomly.'; }
+        A.lastInfo = `AI played column ${mv + 1} in ${(m.ms / 1000).toFixed(2)}s`;
+        place(mv);
+      }, wait);
+    }
+  };
+  worker.postMessage({ type: 'init', url: 'weights.json' });
+}
+function startAI() {
+  A.token++; A.thinking = true;
+  worker.postMessage({ type: 'move', agent: AGENT_ID[A.opponent], level: A.level, board: Array.from(A.game.board), player: A.game.current, token: A.token });
+}
+
+/* ---------- actions ---------- */
+function setTheme(name) { themeName = name; T = THEMES[name]; buildMask(); document.body.style.background = rgb(T.BG); document.documentElement.style.background = rgb(T.BG); document.getElementById('foot').style.color = rgb(T.MUTED); try { localStorage.setItem('c4theme', name); } catch (e) {} }
+function toggleTheme() { setTheme(THEME_ORDER[(THEME_ORDER.indexOf(themeName) + 1) % THEME_ORDER.length]); }
+function newGame(started = false) {
+  A.token++; A.thinking = false; A.started = started; A.game = new Game(); A.moves = []; A.anim = null; A.winCells = []; A.lastMove = null; A.lastInfo = ''; A.counted = false; A.resultKey = null; A.confetti = [];
+}
+function startMode(mode) { A.mode = mode; A.state = 'game'; A.fade = 255; A.msg = ''; A.score = { you: 0, ai: 0, draw: 0 }; newGame(false); }
+function goHome() { A.token++; A.thinking = false; A.state = 'home'; A.fade = 255; A.msg = ''; }
+function startGame() { if (!A.started) { A.msg = ''; A.started = true; } }
+function humanTurn() { return A.started && !A.game.over && !A.anim && !A.thinking && (A.mode === 'two' || A.game.current === A.human); }
+function place(col) {
+  const g = A.game, p = g.current;
+  let row = -1; for (let r = ROWS - 1; r >= 0; r--) if (g.board[r * COLS + col] === 0) { row = r; break; }
+  if (row < 0 || !g.make(col)) return false;
+  A.moves.push([col, p]); A.lastMove = [row, col]; playSound('drop');
+  A.anim = { row, col, player: p, y: BOARD_Y - CELL / 2, vy: 0, bounced: false };
+  return true;
+}
+function humanMove(col) { if (humanTurn() && A.game.valid().includes(col)) place(col); }
+function undo() {
+  if (!A.started || !A.moves.length || A.anim) return;
+  if (A.mode === 'ai' && A.moves.length === 1 && A.moves[0][1] !== A.human) return;
+  A.token++; A.thinking = false;
+  if (A.counted) { A.score[A.resultKey]--; A.counted = false; A.resultKey = null; A.winCells = []; }
+  const removed = A.moves.pop();
+  if (A.mode === 'ai' && removed[1] !== A.human && A.moves.length) A.moves.pop();
+  const remaining = A.moves.slice(); A.game = new Game(); A.moves = [];
+  for (const [c, p] of remaining) { A.game.make(c); A.moves.push([c, p]); }
+  A.lastMove = null;
+  if (remaining.length) { const col = remaining[remaining.length - 1][0]; for (let r = 0; r < ROWS; r++) if (A.game.board[r * COLS + col] !== 0) { A.lastMove = [r, col]; break; } }
+}
+function spawnConfetti() {
+  const cols = [[250,204,21],[239,68,68],[59,130,246],[34,197,94],[255,255,255]];
+  for (let i = 0; i < 120; i++) A.confetti.push({ x: Math.random() * BASE_W, y: -Math.random() * 200, vx: (Math.random() * 3 - 1.5), vy: 2 + Math.random() * 4, c: cols[Math.floor(Math.random() * 5)], s: 5 + Math.random() * 5 });
+}
+function quitApp() { A.state = 'quit'; A.fade = 255; }
+
+/* ---------- update (60 Hz steps) ---------- */
+function update() {
+  const a = A.anim;
+  if (a) {
+    const target = BOARD_Y + a.row * CELL + CELL / 2;
+    a.vy += 1.7; a.y += a.vy;
+    if (a.y >= target) { a.y = target; if (!a.bounced && a.vy > 9) { a.vy = -a.vy * .25; a.bounced = true; } else A.anim = null; }
+  }
+  const g = A.game;
+  if (!A.anim && g.over && !A.counted) {
+    A.counted = true; const w = g.winner;
+    if (w === 1 || w === -1) {
+      A.winCells = findWin(g.board, w);
+      A.resultKey = A.mode === 'two' ? (w === 1 ? 'you' : 'ai') : (w === A.human ? 'you' : 'ai');
+      if (A.mode === 'two' || w === A.human) { spawnConfetti(); playSound('win'); }
+    } else A.resultKey = 'draw';
+    A.score[A.resultKey]++;
+  }
+  if (A.started && !g.over && !A.anim && !A.thinking && A.state === 'game' && A.mode === 'ai' && g.current !== A.human && worker) startAI();
+  if (A.fade > 0) A.fade = Math.max(0, A.fade - 14);
+  for (const c of A.confetti) { c.x += c.vx; c.y += c.vy; }
+  A.confetti = A.confetti.filter(c => c.y < BASE_H);
+  for (const p of A.particles) { p.y += p.v; if (p.y > BASE_H + p.r) { p.y = -p.r; p.x = Math.random() * BASE_W; } }
+}
+
+/* ---------- drawing ---------- */
+let maskCv = null;
+function buildMask() {
+  maskCv = document.createElement('canvas'); maskCv.width = BOARD_W * 2; maskCv.height = BOARD_H * 2;
+  const m = maskCv.getContext('2d'); m.scale(2, 2);
+  m.beginPath(); m.roundRect(0, 0, BOARD_W, BOARD_H, 20);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { m.moveTo(c * CELL + CELL / 2 + HOLE_R, r * CELL + CELL / 2); m.arc(c * CELL + CELL / 2, r * CELL + CELL / 2, HOLE_R, 0, Math.PI * 2, true); }
+  m.fillStyle = rgb(T.BOARD_BLUE); m.fill('evenodd');
+  m.strokeStyle = rgb(T.BOARD_DARK); m.lineWidth = 4;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { m.beginPath(); m.arc(c * CELL + CELL / 2, r * CELL + CELL / 2, HOLE_R + 2, 0, Math.PI * 2); m.stroke(); }
+}
+function piece(x, y, p) {
+  const c = PLAYER_COLOR[p];
+  disc(x, y, PIECE_R, shade(c, .8)); disc(x, y, PIECE_R - 2, c); ring(x, y, INNER_R, shade(c, .86), 4);
+}
+function button(r, label, selected = false, dim = false) {
+  const hover = inRect(A.mouse, r);
+  if (selected) fillRR(r.x, r.y, r.w, r.h, 11, T.ACCENT); else { fillRR(r.x, r.y, r.w, r.h, 11, hover ? T.BTN_HOVER : T.BTN); strokeRR(r.x, r.y, r.w, r.h, 11, T.BORDER); }
+  text(label, r.x + r.w / 2, r.y + r.h / 2, 'norm', selected ? WHITE : (dim ? T.MUTED : T.TEXT), 'center');
+}
+function levelDesc() { const [d, s] = LEVELS[A.level]; return A.opponent === 'Random AI' ? 'no effect' : A.opponent === 'Minimax' ? `depth ${d}` : A.opponent === 'Alpha-Beta' ? `depth ${d + 1}` : `${s} simulations`; }
+function status() {
+  if (!A.started) return ['Press START', GREY_PILL];
+  if (A.game.over && !A.anim) {
+    const w = A.game.winner; if (w === 0) return ['Draw!', GREY_PILL];
+    if (A.mode === 'two') return [w === 1 ? 'Yellow wins!' : 'Red wins!', GREEN];
+    return w === A.human ? ['You won!', GREEN] : ['AI won!', RED_UI];
+  }
+  if (A.thinking) return ['AI is thinking' + '.'.repeat(1 + Math.floor(performance.now() / 333) % 3), AMBER];
+  if (A.mode === 'two') return [A.game.current === 1 ? "Yellow's turn" : "Red's turn", GREEN];
+  return A.game.current === A.human ? ['Your turn', GREEN] : ["AI's turn", AMBER];
+}
+
+function drawHome() {
+  const w = wave(), n = now();
+  for (const p of A.particles) { const sway = Math.sin(w * 1.5 + p.x) * 12; disc(p.x + sway, p.y, p.r, PLAYER_COLOR[p.p], 70 / 255); }
+  const titleWords = ['MINI', 'ALPHAZERO'], subWords = ['Connect','Four','|','CNN','+','Monte','Carlo','Tree','Search'];
+  const base = 0.4 + 2 * 0.55 + 0.2;
+  const times = [0.4, 0.95].concat(subWords.map((_, i) => base + i * 0.2));
+  const count = times.filter(t => n >= t).length;
+  if (count > A.revealed) { playSound('tick'); A.revealed = count; }
+  const gap = measure(' ', 'hero'), widths = titleWords.map(t => measure(t, 'hero'));
+  let x = BASE_W / 2 - (widths[0] + widths[1] + gap) / 2;
+  titleWords.forEach((wd, i) => {
+    const a = Math.max(0, Math.min(1, (n - times[i]) / .35));
+    if (a > 0) { const dy = (1 - a) * 40, bob = a >= 1 ? Math.sin(w * 2.5 + i * 1.3) * 6 : 0; text(wd, x, 110 + dy + bob, 'hero', i === 0 ? T.ACCENT : T.TEXT, 'topleft', a); }
+    x += widths[i] + gap;
+  });
+  const g2 = measure(' ', 'norm'), w2 = subWords.map(t => measure(t, 'norm'));
+  x = BASE_W / 2 - (w2.reduce((a, b) => a + b, 0) + g2 * (subWords.length - 1)) / 2;
+  subWords.forEach((wd, i) => { const a = Math.max(0, Math.min(1, (n - times[2 + i]) / .25)); if (a > 0) text(wd, x, 235 + (1 - a) * 14, 'norm', T.MUTED, 'topleft', a); x += w2[i] + g2; });
+  for (let i = 0; i < 7; i++) {
+    const e = n - (UI_TIME - 0.6 + i * 0.08); if (e < 0) continue;
+    const drop = Math.max(0, 0.4 - e) * 500, bounce = e >= 0.4 ? Math.abs(Math.sin(w * 2.5 + i * 0.7)) * 26 : 0;
+    disc(BASE_W / 2 + (i - 3) * 80, 335 - drop - bounce, 28, PLAYER_COLOR[i % 2 === 0 ? 1 : -1]);
+  }
+  const ready = n >= UI_TIME;
+  homeButtons.forEach((b, i) => {
+    const e = n - (UI_TIME + i * 0.1); if (e < 0) return;
+    const a = Math.min(1, e / .3), hover = ready && inRect(A.mouse, b.r);
+    const grow = hover ? 8 : (ready ? Math.sin(w * 3 + i) * 2 : 0);
+    const r = R(b.r.x - grow - (1 - a) * 200, b.r.y - grow / 2, b.r.w + grow * 2, b.r.h + grow);
+    let bg, fg;
+    if (b.id === 'ai') { bg = hover ? GREEN_HOVER : GREEN; fg = WHITE; } else if (b.id === 'two') { bg = T.ACCENT; fg = WHITE; } else { bg = hover ? T.BTN_HOVER : T.BTN; fg = T.TEXT; }
+    fillRR(r.x, r.y, r.w, r.h, 22, bg);
+    if (b.id !== 'ai' && b.id !== 'two') strokeRR(r.x, r.y, r.w, r.h, 22, T.BORDER);
+    text(b.label, r.x + r.w / 2, r.y + r.h / 2, 'med', fg, 'center');
+  });
+  if (ready) text('1 vs AI  |  2 two players  |  H how to play  |  A about  |  M sound  |  T theme  |  ESC quit', BASE_W / 2, BASE_H - 40, 'small', T.MUTED, 'center');
+  button(soundRect, `Sound: ${soundOn ? 'On' : 'Off'}`); button(homeThemeRect, `Theme: ${themeName}`);
+}
+function drawInfo() {
+  const card = R(100, 110, BASE_W - 200, BASE_H - 250);
+  fillRR(card.x, card.y, card.w, card.h, 20, T.PANEL_BG); strokeRR(card.x, card.y, card.w, card.h, 20, T.PANEL_EDGE);
+  const left = card.x + 40, inner = card.w - 80, top = card.y;
+  text(A.state === 'howto' ? 'HOW TO PLAY' : 'ABOUT', left, top + 28, 'big', T.ACCENT);
+  fillRR(left, top + 80, 70, 5, 3, T.ACCENT);
+  if (A.state === 'howto') {
+    text('Four simple steps and you are playing.', left, top + 96, 'body', T.MUTED);
+    const gap = 14, cw = (inner - gap) / 2, ch = 135;
+    HOWTO_STEPS.forEach(([num, title, desc], i) => {
+      const r = R(left + (i % 2) * (cw + gap), top + 130 + Math.floor(i / 2) * (ch + gap), cw, ch);
+      fillRR(r.x, r.y, r.w, r.h, 14, T.BTN); strokeRR(r.x, r.y, r.w, r.h, 14, T.BORDER);
+      const cx = r.x + 40, cy = r.y + 36; disc(cx, cy, 20, T.ACCENT); text(num, cx, cy, 'med', WHITE, 'center'); text(title, r.x + 74, cy, 'med', T.TEXT, 'midleft');
+      let y = r.y + 68; for (const line of wrap(desc, 'body', cw - 48)) { text(line, r.x + 24, y, 'body', T.MUTED); y += 26; }
+    });
+    text('KEYBOARD SHORTCUTS', left, top + 436, 'small', T.MUTED);
+    const g = 12, n = HOWTO_KEYS.length, wd = (inner - (n - 1) * g) / n;
+    HOWTO_KEYS.forEach(([k, l], i) => {
+      const r = R(left + i * (wd + g), top + 464, wd, 70); fillRR(r.x, r.y, r.w, r.h, 12, T.BTN); strokeRR(r.x, r.y, r.w, r.h, 12, T.BORDER);
+      text(k, r.x + wd / 2, r.y + 6, 'med', T.ACCENT, 'midtop'); text(l, r.x + wd / 2, r.y + 42, 'body', T.MUTED, 'midtop');
+    });
+  } else {
+    let y = top + 100; for (const line of wrap(ABOUT_TEXT, 'body', inner)) { text(line, left, y, 'body', T.TEXT); y += 30; }
+    text('AI AGENTS', left, top + 240, 'small', T.MUTED);
+    y = top + 270; for (const [n, d] of ABOUT_AGENTS) { disc(left + 8, y + 13, 5, T.ACCENT); text(n, left + 26, y, 'bodyB', T.TEXT); text(d, left + 200, y, 'body', T.MUTED); y += 40; }
+    const strip = R(left, top + 500, inner, 70); fillRR(strip.x, strip.y, strip.w, strip.h, 14, T.BTN); strokeRR(strip.x, strip.y, strip.w, strip.h, 14, T.BORDER);
+    const col = strip.w / ABOUT_INFO.length;
+    ABOUT_INFO.forEach(([l, v], i) => { const cx = strip.x + i * col + col / 2; text(l.toUpperCase(), cx, strip.y + 10, 'small', T.MUTED, 'midtop'); text(v, cx, strip.y + 34, 'bodyB', T.TEXT, 'midtop'); });
+  }
+  infoBackRect = R(left, card.y + card.h - 80, 160, 54); button(infoBackRect, '< Back');
+}
+function hoverCol() {
+  const m = A.mouse;
+  if (humanTurn() && m.x >= BOARD_X && m.x < BOARD_X + BOARD_W && m.y >= BOARD_Y - 110 && m.y < BOARD_Y + BOARD_H) return Math.floor((m.x - BOARD_X) / CELL);
+  return null;
+}
+function drawGame() {
+  text('MINI-ALPHAZERO', BOARD_X, 16, 'title'); text('Connect Four', BOARD_X, 72, 'norm', T.MUTED);
+  const [label, color] = status(); fillRR(PANEL.x, 26, PANEL.w, 60, 30, color); text(label, PANEL.x + PANEL.w / 2, 56, 'med', WHITE, 'center');
+  button(themeRect, `Theme: ${themeName}`); button(backRect, '< Back');
+  // board
+  fillRR(BOARD_X + 4, BOARD_Y + 8, BOARD_W, BOARD_H, 20, T.SHADOW); fillRR(BOARD_X, BOARD_Y, BOARD_W, BOARD_H, 20, T.HOLE_BG);
+  const hc = hoverCol(), valid = A.game.valid();
+  if (hc !== null) { const cx = BOARD_X + hc * CELL + CELL / 2; if (valid.includes(hc)) piece(cx, PREVIEW_Y, A.game.current); else disc(cx, PREVIEW_Y, PIECE_R, T.DISABLED); }
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const v = A.game.board[r * COLS + c]; if (!v) continue;
+    if (A.anim && A.anim.row === r && A.anim.col === c) continue;
+    piece(BOARD_X + c * CELL + CELL / 2, BOARD_Y + r * CELL + CELL / 2, v);
+  }
+  if (A.anim) piece(BOARD_X + A.anim.col * CELL + CELL / 2, A.anim.y, A.anim.player);
+  ctx.drawImage(maskCv, BOARD_X, BOARD_Y, BOARD_W, BOARD_H);
+  if (hc !== null && valid.includes(hc)) { ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(BOARD_X + hc * CELL, BOARD_Y, CELL, BOARD_H); }
+  if (A.lastMove && !A.anim) disc(BOARD_X + A.lastMove[1] * CELL + CELL / 2, BOARD_Y + A.lastMove[0] * CELL + CELL / 2, 8, MARKER);
+  if (A.winCells.length) { const pulse = 3 * Math.sin(performance.now() / 1000 * 6); for (const [r, c] of A.winCells) ring(BOARD_X + c * CELL + CELL / 2, BOARD_Y + r * CELL + CELL / 2, HOLE_R + 3 + pulse, WHITE, 5); }
+  if (!A.started) {
+    rrect(BOARD_X, BOARD_Y, BOARD_W, BOARD_H, 20); ctx.fillStyle = rgb(T.VEIL.slice(0, 3), T.VEIL[3] / 255); ctx.fill();
+    const hover = inRect(A.mouse, startRect); fillRR(startRect.x, startRect.y, startRect.w, startRect.h, 22, hover ? GREEN_HOVER : GREEN);
+    text('START GAME', startRect.x + startRect.w / 2, startRect.y + startRect.h / 2, 'start', WHITE, 'center');
+    text(A.mode === 'ai' ? 'Choose your opponent on the right, then press Start' : 'Press Start to begin', startRect.x + startRect.w / 2, startRect.y + startRect.h + 36, 'norm', T.TEXT, 'center');
+  }
+  const y = BOARD_Y + BOARD_H + 18;
+  if (A.msg) text(A.msg, BOARD_X, y, 'norm', AMBER); else if (A.lastInfo) text(A.lastInfo, BOARD_X, y, 'norm', T.MUTED);
+  text('Click a column or 1-7  |  U undo  |  R restart  |  T theme  |  ESC menu', BOARD_X, y + 36, 'small', T.MUTED);
+  // panel
+  fillRR(PANEL.x, PANEL.y, PANEL.w, PANEL.h, 18, T.PANEL_BG); strokeRR(PANEL.x, PANEL.y, PANEL.w, PANEL.h, 18, T.PANEL_EDGE);
+  if (A.mode === 'two') {
+    text('TWO PLAYER MODE', PX, Y_OPP, 'small', T.MUTED);
+    [[1, 'Player 1  (Yellow)'], [-1, 'Player 2  (Red)']].forEach(([p, name], i) => {
+      const r = R(PX, Y_BTN0 + i * 80, PW, 64), active = A.started && !A.game.over && A.game.current === p;
+      fillRR(r.x, r.y, r.w, r.h, 14, active ? T.ACCENT : T.BTN); if (!active) strokeRR(r.x, r.y, r.w, r.h, 14, T.BORDER);
+      disc(r.x + 36, r.y + r.h / 2, 20, PLAYER_COLOR[p]); text(name, r.x + 74, r.y + r.h / 2, 'norm', active ? WHITE : T.TEXT, 'midleft');
+    });
+  } else {
+    text('OPPONENT', PX, Y_OPP, 'small', T.MUTED); text('STRENGTH', PX, Y_STR, 'small', T.MUTED); text(levelDesc(), PX + PW, Y_STR, 'small', T.MUTED, 'topright');
+    text('YOU PLAY', PX, Y_YOU, 'small', T.MUTED);
+  }
+  text('SCORE', PX, Y_SCORE, 'small', T.MUTED);
+  for (const b of buttons) {
+    if (A.mode === 'two' && Array.isArray(b.id)) continue;
+    let label = b.label, dim = false, sel = false;
+    if (Array.isArray(b.id)) {
+      const [k, v] = b.id;
+      if (k === 'ai') { sel = v === A.opponent; if (v === 'Neural MCTS' && !A.neuralOK) { label = 'Neural MCTS (no model)'; dim = true; } }
+      if (k === 'level') { sel = v === A.level; if (A.opponent === 'Random AI') dim = true; }
+      if (k === 'side') sel = v === A.human;
+    }
+    button(b.r, label, sel, dim);
+  }
+  const labels = A.mode === 'two' ? [['Yellow', A.score.you], ['Red', A.score.ai], ['Draws', A.score.draw]] : [['You', A.score.you], ['AI', A.score.ai], ['Draws', A.score.draw]];
+  labels.forEach(([l, v], i) => {
+    const r = R(PX + i * (third + GAP), Y_BOX, third, BOX_H); fillRR(r.x, r.y, r.w, r.h, 12, T.BTN); strokeRR(r.x, r.y, r.w, r.h, 12, T.BORDER);
+    text(String(v), r.x + r.w / 2, r.y + 8, 'big', T.TEXT, 'midtop'); text(l, r.x + r.w / 2, r.y + 56, 'small', T.MUTED, 'midtop');
+  });
+  for (const c of A.confetti) { ctx.fillStyle = rgb(c.c); ctx.fillRect(c.x, c.y, c.s, c.s); }
+}
+function drawQuit() {
+  text('Thanks for playing!', BASE_W / 2, 330, 'hero', T.ACCENT, 'center');
+  text('Mini-AlphaZero | Connect Four', BASE_W / 2, 420, 'med', T.MUTED, 'center');
+  const r = R(BASE_W / 2 - 210, 500, 420, 62); A.quitBtn = r; const hover = inRect(A.mouse, r);
+  fillRR(r.x, r.y, r.w, r.h, 22, hover ? GREEN_HOVER : GREEN); text('Back to menu', r.x + r.w / 2, r.y + r.h / 2, 'med', WHITE, 'center');
+}
+function draw() {
+  ctx.setTransform(S, 0, 0, S, 0, 0); ctx.clearRect(0, 0, BASE_W, BASE_H);
+  ctx.fillStyle = rgb(T.BG); ctx.fillRect(0, 0, BASE_W, BASE_H);
+  if (A.state === 'home') drawHome(); else if (A.state === 'howto' || A.state === 'about') drawInfo(); else if (A.state === 'quit') drawQuit(); else drawGame();
+  if (A.fade > 0) { ctx.fillStyle = rgb(T.BG, A.fade / 255); ctx.fillRect(0, 0, BASE_W, BASE_H); }
+}
+
+/* ---------- input ---------- */
+function pos(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * BASE_W / r.width, y: (e.clientY - r.top) * BASE_H / r.height }; }
+function skipIntro() { A.introT0 = performance.now() - 100000; }
+function click(p) {
+  A.msg = '';
+  if (A.state === 'quit') { if (A.quitBtn && inRect(p, A.quitBtn)) goHome(); return; }
+  if (A.state === 'home') {
+    if (inRect(p, homeThemeRect)) { toggleTheme(); return; }
+    if (inRect(p, soundRect)) { soundOn = !soundOn; playSound('click'); return; }
+    if (now() < UI_TIME) { skipIntro(); return; }
+    for (const b of homeButtons) if (inRect(p, b.r)) {
+      playSound('click');
+      if (b.id === 'quit') quitApp(); else if (b.id === 'howto' || b.id === 'about') { A.state = b.id; A.fade = 255; } else startMode(b.id);
+      break;
+    }
+    return;
+  }
+  if (A.state === 'howto' || A.state === 'about') { if (inRect(p, infoBackRect)) { playSound('click'); goHome(); } return; }
+  if (inRect(p, backRect)) { playSound('click'); goHome(); return; }
+  if (inRect(p, themeRect)) { toggleTheme(); return; }
+  if (!A.started && inRect(p, startRect)) { startGame(); return; }
+  for (const b of buttons) {
+    if (!inRect(p, b.r)) continue;
+    if (A.mode === 'two' && Array.isArray(b.id)) continue;
+    if (b.id === 'exit') { goHome(); return; }
+    if (b.id === 'restart') newGame(true); else if (b.id === 'undo') undo();
+    else {
+      const [k, v] = b.id;
+      if (k === 'ai') {
+        if (v === 'Neural MCTS' && !A.neuralOK) { A.msg = 'Neural MCTS model (weights.json) was not found.'; return; }
+        A.touched = true; A.opponent = v; A.score = { you: 0, ai: 0, draw: 0 }; newGame(false);
+      } else if (k === 'level') { A.level = v; newGame(false); }
+      else if (k === 'side') { A.human = v; newGame(false); }
+    }
+    return;
+  }
+  if (p.x >= BOARD_X && p.x < BOARD_X + BOARD_W && p.y >= BOARD_Y - 110 && p.y < BOARD_Y + BOARD_H) humanMove(Math.floor((p.x - BOARD_X) / CELL));
+}
+cv.addEventListener('pointermove', e => { A.mouse = pos(e); });
+cv.addEventListener('pointerleave', () => { A.mouse = { x: -1, y: -1 }; });
+cv.addEventListener('pointerdown', e => { ensureAudio(); A.mouse = pos(e); click(A.mouse); e.preventDefault(); });
+window.addEventListener('keydown', e => {
+  ensureAudio(); const k = e.key.toLowerCase();
+  if (A.state === 'quit') return;
+  if (A.state === 'home') {
+    if (now() < UI_TIME) { skipIntro(); return; }
+    if (k === 'escape') quitApp(); else if (k === '1' || k === 'enter') startMode('ai'); else if (k === '2') startMode('two');
+    else if (k === 'h') { A.state = 'howto'; A.fade = 255; } else if (k === 'a') { A.state = 'about'; A.fade = 255; }
+    else if (k === 'm') soundOn = !soundOn; else if (k === 't') toggleTheme();
+    return;
+  }
+  if ((A.state === 'howto' || A.state === 'about') && k !== 'escape') return;
+  if (k === 'escape') goHome();
+  else if (k === 'enter' || k === ' ') { startGame(); e.preventDefault(); }
+  else if (k === 'r') { A.msg = ''; newGame(true); }
+  else if (k === 't') toggleTheme();
+  else if (k === 'm') soundOn = !soundOn;
+  else if (k === 'u') { A.msg = ''; undo(); }
+  else if (k >= '1' && k <= '7') humanMove(parseInt(k, 10) - 1);
+});
+window.addEventListener('resize', fit);
+
+/* ---------- main loop (fixed 60 Hz update) ---------- */
+let last = performance.now(), acc = 0;
+function loop(t) {
+  acc += Math.min(100, t - last); last = t;
+  while (acc >= 1000 / 60) { update(); acc -= 1000 / 60; }
+  draw(); requestAnimationFrame(loop);
+}
+let saved = null; try { saved = localStorage.getItem('c4theme'); } catch (e) {}
+fit(); setTheme(saved && THEMES[saved] ? saved : 'Light'); startWorker(); requestAnimationFrame(loop);
+window.__A = A;
+})();
+</script>
+</body>
+</html>
